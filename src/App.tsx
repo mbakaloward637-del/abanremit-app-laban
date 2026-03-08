@@ -40,6 +40,8 @@ const App = () => (
             <Route path="/exchange" element={<Exchange />} />
             <Route path="/withdraw" element={<Withdraw />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/buy-airtime" element={<BuyAirtime />} />
+            <Route path="/statement" element={<StatementDownload />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
