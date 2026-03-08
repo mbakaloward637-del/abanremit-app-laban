@@ -71,6 +71,19 @@ const SendMoney = () => {
       await refreshUser();
       setDone(true);
       toast.success(`${result.currency} ${amount} sent successfully!`);
+
+      // Send transaction SMS to sender & recipient (fire-and-forget)
+      supabase.functions.invoke("send-transaction-sms", {
+        body: {
+          type: "send",
+          amount,
+          currency: result.currency,
+          reference: result.reference,
+          recipient_name: recipientInfo?.name || recipient,
+          recipient_phone: method === "phone" ? recipient : undefined,
+          sender_name: `${user.firstName} ${user.lastName}`,
+        },
+      }).catch(() => {});
     } catch (err: any) {
       toast.error(err.message || "Transfer failed");
     } finally {

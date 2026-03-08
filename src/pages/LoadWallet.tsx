@@ -57,6 +57,11 @@ const LoadWallet = () => {
       await refreshUser();
       setDone(true);
       toast.success(`${wallet.currency} ${amount} deposited successfully!`);
+
+      // Send transaction SMS notification (fire-and-forget)
+      supabase.functions.invoke("send-transaction-sms", {
+        body: { type: "deposit", amount, currency: wallet.currency, reference: ref },
+      }).catch(() => {});
     } catch (err: any) {
       toast.error(err.message || "Deposit failed");
     } finally {
