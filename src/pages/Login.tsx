@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, loading: authLoading } = useAuth();
+  const { login, loading: authLoading, user, isAdmin, isSuperAdmin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,14 +18,11 @@ const Login = () => {
     setLoading(false);
     if (success) {
       toast.success("Welcome back!");
-      // Role-based redirect handled after user data loads
     } else {
       toast.error("Invalid credentials. Check your email and password.");
     }
   };
 
-  // Redirect after auth loads
-  const { user, isAdmin, isSuperAdmin } = useAuth();
   if (user && !authLoading) {
     const target = isSuperAdmin ? "/admin/super-dashboard" : isAdmin ? "/admin/dashboard" : "/dashboard";
     navigate(target, { replace: true });
@@ -53,7 +50,7 @@ const Login = () => {
               onKeyDown={(e) => e.key === "Enter" && handleLogin()} />
           </div>
 
-          <button className="text-xs text-primary font-medium">Forgot password?</button>
+          <button onClick={() => navigate("/forgot-password")} className="text-xs text-primary font-medium">Forgot password?</button>
 
           <button onClick={handleLogin} disabled={loading} className="btn-primary flex items-center justify-center gap-2">
             {loading ? <Loader2 size={16} className="animate-spin" /> : <>Sign In <ArrowRight size={16} /></>}

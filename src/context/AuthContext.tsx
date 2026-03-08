@@ -43,21 +43,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserData = async (authUser: User) => {
     try {
-      // Fetch profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", authUser.id)
         .single();
 
-      // Fetch wallet
       const { data: wallet } = await supabase
         .from("wallets")
         .select("*")
         .eq("user_id", authUser.id)
         .single();
 
-      // Fetch roles
       const { data: userRoles } = await supabase
         .from("user_roles")
         .select("role")
@@ -97,12 +94,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         setSession(newSession);
         if (newSession?.user) {
-          // Use setTimeout to avoid Supabase client deadlock
           setTimeout(() => fetchUserData(newSession.user), 0);
         } else {
           setUser(null);
@@ -112,7 +107,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
       setSession(existingSession);
       if (existingSession?.user) {
@@ -123,6 +117,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Realtime wallet balance listener
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`wallet-balance-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "wallets",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newBalance = Number(payload.new.balance);
+          setUser((prev) => prev ? { ...prev, walletBalance: newBalance } : prev);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
