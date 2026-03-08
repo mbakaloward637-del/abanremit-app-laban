@@ -47,6 +47,7 @@ const LoadWallet = () => {
 
       // In production, wallet credit happens via webhook after payment confirmation
       // For now, simulate immediate credit
+      const ref = `DEP${Date.now()}`;
 
       // Credit wallet (in production, this happens via webhook after payment confirmation)
       await supabase.from("wallets").update({ balance: Number(wallet.balance) + Number(amount) }).eq("id", wallet.id);
