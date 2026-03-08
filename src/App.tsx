@@ -15,6 +15,8 @@ import CardPage from "./pages/CardPage";
 import Exchange from "./pages/Exchange";
 import Withdraw from "./pages/Withdraw";
 import AdminPanel from "./pages/AdminPanel";
+import BuyAirtime from "./pages/BuyAirtime";
+import StatementDownload from "./pages/StatementDownload";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,6 +40,8 @@ const App = () => (
             <Route path="/exchange" element={<Exchange />} />
             <Route path="/withdraw" element={<Withdraw />} />
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/buy-airtime" element={<BuyAirtime />} />
+            <Route path="/statement" element={<StatementDownload />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
