@@ -30,7 +30,7 @@ const SendMoney = () => {
   const [processing, setProcessing] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [done, setDone] = useState(false);
-  const [recipientInfo, setRecipientInfo] = useState<{ name: string; wallet: string } | null>(null);
+  const [recipientInfo, setRecipientInfo] = useState<{ name: string; wallet: string; userId: string; avatar?: string } | null>(null);
   const [txResult, setTxResult] = useState<{ reference: string; fee: number; currency: string } | null>(null);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
@@ -104,7 +104,7 @@ const SendMoney = () => {
       if (error) throw error;
       const result = data as any;
       if (result?.found) {
-        setRecipientInfo({ name: result.name, wallet: result.wallet || "" });
+        setRecipientInfo({ name: result.name, wallet: result.wallet || "", userId: result.user_id || "", avatar: result.avatar_url });
       } else {
         setRecipientInfo(null);
         setErrors((prev) => [
@@ -327,15 +327,22 @@ const SendMoney = () => {
               </div>
 
               {recipientInfo && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="section-card flex items-center gap-3 border border-success/30 bg-success/5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                    {recipientInfo.name.split(" ").map((n) => n[0]).join("").toUpperCase()}
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="section-card border border-success/30 bg-success/5">
+                  <div className="flex items-center gap-3">
+                    {recipientInfo.avatar ? (
+                      <img src={recipientInfo.avatar} alt={recipientInfo.name} className="h-12 w-12 rounded-full object-cover border border-border" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shrink-0">
+                        {recipientInfo.name.split(" ").map((n) => n[0]).join("").toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground">{recipientInfo.name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{recipientInfo.wallet}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">ID: {recipientInfo.userId.slice(0, 8).toUpperCase()}…{recipientInfo.userId.slice(-4).toUpperCase()}</p>
+                    </div>
+                    <Check size={18} className="text-success shrink-0" />
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{recipientInfo.name}</p>
-                    <p className="text-xs text-muted-foreground">{recipientInfo.wallet || recipient}</p>
-                  </div>
-                  <Check size={18} className="ml-auto text-success" />
                 </motion.div>
               )}
 
@@ -419,16 +426,25 @@ const SendMoney = () => {
             <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
               <h2 className="text-base font-semibold text-foreground">Confirm Transfer</h2>
 
+              {/* Recipient identity block */}
+              <div className="section-card flex items-center gap-3 border border-border bg-muted/30">
+                {recipientInfo?.avatar ? (
+                  <img src={recipientInfo.avatar} alt={recipientInfo.name} className="h-12 w-12 rounded-full object-cover border border-border shrink-0" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shrink-0">
+                    {(recipientInfo?.name || "?").split(" ").map((n) => n[0]).join("").toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{recipientInfo?.name || recipient}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{recipientInfo?.wallet || recipient}</p>
+                  {recipientInfo?.userId && (
+                    <p className="text-xs text-muted-foreground mt-0.5">ID: {recipientInfo.userId.slice(0, 8).toUpperCase()}…{recipientInfo.userId.slice(-4).toUpperCase()}</p>
+                  )}
+                </div>
+              </div>
+
               <div className="section-card space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">To</span>
-                  <span className="font-medium text-foreground">{recipientInfo?.name || recipient}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wallet</span>
-                  <span className="font-mono text-xs text-foreground">{recipientInfo?.wallet || recipient}</span>
-                </div>
-                <div className="border-t border-border my-1" />
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Amount</span>
                   <span className="font-bold text-foreground">{user?.currency} {Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
