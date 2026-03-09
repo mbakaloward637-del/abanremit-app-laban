@@ -6,58 +6,25 @@ import { useAuth } from "@/context/AuthContext";
 import { Bell, Shield, LogOut, Loader2, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/services/api";
+import { useQuery } from "@tanstack/react-query";
 import type { Transaction } from "@/components/TransactionItem";
 
 const Dashboard = () => {
   const { user, isAdmin, logout, loading } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!loading && !user) navigate("/login");
   }, [user, loading, navigate]);
 
-  // Realtime transaction listener — auto-refresh recent transactions
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel(`dashboard-txns-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "transactions",
-        },
-        (payload) => {
-          const tx = payload.new as any;
-          if (tx.sender_user_id === user.id || tx.receiver_user_id === user.id) {
-            queryClient.invalidateQueries({ queryKey: ["recent-transactions", user.id] });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id, queryClient]);
-
   const { data: transactions = [] } = useQuery({
     queryKey: ["recent-transactions", user?.id],
     enabled: !!user,
+    refetchInterval: 15000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .or(`sender_user_id.eq.${user!.id},receiver_user_id.eq.${user!.id}`)
-        .order("created_at", { ascending: false })
-        .limit(4);
-      if (error) throw error;
-      return (data || []).map((tx): Transaction => ({
+      const res = await api.transactions.list({ limit: 4 });
+      return (res.data || []).map((tx: any): Transaction => ({
         id: tx.id,
         type: tx.type as Transaction["type"],
         amount: Number(tx.amount),
@@ -111,7 +78,6 @@ const Dashboard = () => {
       </div>
 
       <div className="px-5 space-y-6">
-        {/* KYC Status Banner — informational only, does not block access */}
         {user.kycStatus === "pending" && (
           <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-3">
             <AlertTriangle size={18} className="text-warning shrink-0 mt-0.5" />

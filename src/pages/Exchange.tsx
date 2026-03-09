@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowUpDown, Loader2, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
@@ -19,44 +19,22 @@ const Exchange = () => {
   const { data: rates = [] } = useQuery({
     queryKey: ["exchange-rates"],
     queryFn: async () => {
-      const { data } = await supabase.from("exchange_rates").select("*").eq("is_active", true);
-      return data || [];
+      return await api.exchangeRates.list();
     },
   });
 
-  const currentRate = rates.find(r => r.from_currency === from && r.to_currency === to);
+  const currentRate = rates.find((r: any) => r.from_currency === from && r.to_currency === to);
   const rate = currentRate ? Number(currentRate.rate) : 0;
   const converted = amount ? (parseFloat(amount) * rate).toFixed(2) : "0.00";
 
-  const currencies = [...new Set(rates.flatMap(r => [r.from_currency, r.to_currency]))];
+  const currencies = [...new Set(rates.flatMap((r: any) => [r.from_currency, r.to_currency]))];
   if (currencies.length === 0) currencies.push("KES", "USD", "GBP", "EUR");
 
   const handleExchange = async () => {
     if (!user || !amount || !rate) return;
     setProcessing(true);
     try {
-      const { data: wallet } = await supabase.from("wallets").select("*").eq("user_id", user.id).single();
-      if (!wallet) throw new Error("Wallet not found");
-      if (from !== wallet.currency) throw new Error("Can only exchange from your wallet currency");
-      if (Number(wallet.balance) < Number(amount)) throw new Error("Insufficient balance");
-
-      // Debit original amount and credit converted amount (same wallet for now)
-      const newBalance = Number(wallet.balance) - Number(amount) + Number(converted);
-      await supabase.from("wallets").update({ balance: newBalance }).eq("id", wallet.id);
-      await supabase.from("transactions").insert({
-        reference: `EXC${Date.now()}`,
-        type: "exchange",
-        sender_user_id: user.id,
-        sender_wallet_id: wallet.id,
-        receiver_user_id: user.id,
-        receiver_wallet_id: wallet.id,
-        amount: Number(amount),
-        currency: from,
-        description: `${from} → ${to} Exchange`,
-        status: "completed",
-        metadata: { to_currency: to, rate, converted_amount: Number(converted) },
-      });
-
+      await api.transactions.exchange({ amount: Number(amount), from_currency: from, to_currency: to });
       await refreshUser();
       setDone(true);
       toast.success(`Exchanged ${from} ${amount} → ${to} ${converted}`);
@@ -94,7 +72,6 @@ const Exchange = () => {
           <button onClick={() => navigate(-1)} className="back-btn"><ArrowLeft size={18} className="text-foreground" /></button>
           <h1 className="text-lg font-bold text-foreground">Exchange Currency</h1>
         </div>
-
         <div className="space-y-4">
           <div className="section-card">
             <p className="text-[10px] text-muted-foreground uppercase mb-2 font-medium">You Send</p>
@@ -105,14 +82,12 @@ const Exchange = () => {
               </select>
             </div>
           </div>
-
           <div className="flex justify-center">
             <button onClick={() => { const t = from; setFrom(to); setTo(t); }}
               className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-card hover:bg-secondary transition-colors">
               <ArrowUpDown size={20} className="text-primary" />
             </button>
           </div>
-
           <div className="section-card">
             <p className="text-[10px] text-muted-foreground uppercase mb-2 font-medium">You Receive</p>
             <div className="flex gap-3">
@@ -122,14 +97,12 @@ const Exchange = () => {
               </select>
             </div>
           </div>
-
           <div className="section-card">
             <div className="flex justify-between text-xs">
               <span className="text-muted-foreground">Exchange Rate</span>
               <span className="font-medium text-foreground">{rate ? `1 ${from} = ${rate} ${to}` : "Rate unavailable"}</span>
             </div>
           </div>
-
           <button onClick={handleExchange} disabled={!amount || !rate || processing} className="btn-primary flex items-center justify-center gap-2">
             {processing ? <Loader2 size={16} className="animate-spin" /> : "Convert Currency"}
           </button>

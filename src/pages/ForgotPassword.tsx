@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { toast } from "sonner";
 
 const ForgotPassword = () => {
@@ -13,14 +13,13 @@ const ForgotPassword = () => {
   const handleReset = async () => {
     if (!email) { toast.error("Please enter your email"); return; }
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      await api.auth.forgotPassword(email);
       setSent(true);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send reset link");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -28,14 +27,9 @@ const ForgotPassword = () => {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-5 py-8">
         <div className="w-full max-w-sm space-y-6 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
-            <CheckCircle size={32} className="text-success" />
-          </div>
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-success/10"><CheckCircle size={32} className="text-success" /></div>
           <h1 className="text-xl font-bold text-foreground">Check Your Email</h1>
-          <p className="text-sm text-muted-foreground">
-            We've sent a password reset link to <span className="font-semibold text-foreground">{email}</span>. 
-            Click the link in the email to reset your password.
-          </p>
+          <p className="text-sm text-muted-foreground">We've sent a password reset link to <span className="font-semibold text-foreground">{email}</span>.</p>
           <p className="text-xs text-muted-foreground">Didn't receive it? Check your spam folder or try again.</p>
           <div className="flex flex-col gap-3">
             <button onClick={() => setSent(false)} className="btn-primary">Try Again</button>
@@ -49,9 +43,7 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-5 py-8">
       <div className="w-full max-w-sm space-y-6">
-        <button onClick={() => navigate("/login")} className="back-btn">
-          <ArrowLeft size={18} />
-        </button>
+        <button onClick={() => navigate("/login")} className="back-btn"><ArrowLeft size={18} /></button>
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">Forgot Password</h1>
           <p className="mt-1 text-sm text-muted-foreground">Enter your email and we'll send you a reset link</p>
@@ -60,16 +52,14 @@ const ForgotPassword = () => {
           <div>
             <label className="label-text flex items-center gap-1"><Mail size={12}/>Email Address</label>
             <input type="email" className="input-field" placeholder="your@email.com" value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleReset()} />
+              onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReset()} />
           </div>
           <button onClick={handleReset} disabled={loading} className="btn-primary flex items-center justify-center gap-2">
             {loading ? <Loader2 size={16} className="animate-spin" /> : "Send Reset Link"}
           </button>
         </div>
         <p className="text-center text-xs text-muted-foreground">
-          Remember your password?{" "}
-          <button onClick={() => navigate("/login")} className="text-primary font-semibold">Sign In</button>
+          Remember your password? <button onClick={() => navigate("/login")} className="text-primary font-semibold">Sign In</button>
         </p>
       </div>
     </div>
