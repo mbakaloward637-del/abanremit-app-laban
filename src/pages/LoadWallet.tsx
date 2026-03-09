@@ -32,7 +32,7 @@ const LoadWallet = () => {
         await api.mpesa.stkPush({ phone: phone || user.phone, amount: Number(amount) });
         toast.success("STK Push sent! Check your phone.");
       } else {
-        await api.transactions.deposit({ amount: Number(amount), method, phone: method === "mpesa" ? phone : undefined });
+        await api.transactions.deposit({ amount: Number(amount), method });
       }
       await refreshUser();
       setDone(true);
