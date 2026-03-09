@@ -426,16 +426,25 @@ const SendMoney = () => {
             <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
               <h2 className="text-base font-semibold text-foreground">Confirm Transfer</h2>
 
+              {/* Recipient identity block */}
+              <div className="section-card flex items-center gap-3 border border-border bg-muted/30">
+                {recipientInfo?.avatar ? (
+                  <img src={recipientInfo.avatar} alt={recipientInfo.name} className="h-12 w-12 rounded-full object-cover border border-border shrink-0" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shrink-0">
+                    {(recipientInfo?.name || "?").split(" ").map((n) => n[0]).join("").toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{recipientInfo?.name || recipient}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{recipientInfo?.wallet || recipient}</p>
+                  {recipientInfo?.userId && (
+                    <p className="text-xs text-muted-foreground mt-0.5">ID: {recipientInfo.userId.slice(0, 8).toUpperCase()}…{recipientInfo.userId.slice(-4).toUpperCase()}</p>
+                  )}
+                </div>
+              </div>
+
               <div className="section-card space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">To</span>
-                  <span className="font-medium text-foreground">{recipientInfo?.name || recipient}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wallet</span>
-                  <span className="font-mono text-xs text-foreground">{recipientInfo?.wallet || recipient}</span>
-                </div>
-                <div className="border-t border-border my-1" />
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Amount</span>
                   <span className="font-bold text-foreground">{user?.currency} {Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
