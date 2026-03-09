@@ -1,6 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
 
 interface Props {
   children: React.ReactNode;
@@ -11,10 +10,11 @@ interface Props {
 const ProtectedRoute = ({ children, requireAdmin, requireSuperAdmin }: Props) => {
   const { user, loading, isAdmin, isSuperAdmin } = useAuth();
 
+  // Show nothing while checking auth - prevents flash
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 size={32} className="animate-spin text-primary" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
