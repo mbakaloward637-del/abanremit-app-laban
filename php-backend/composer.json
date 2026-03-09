@@ -1,0 +1,33 @@
+{
+    "name": "abanremit/api",
+    "type": "project",
+    "description": "AbanRemit Digital Wallet REST API",
+    "require": {
+        "php": "^8.1",
+        "laravel/framework": "^10.0",
+        "tymon/jwt-auth": "^2.0",
+        "laravel/sanctum": "^3.3"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.9.1",
+        "phpunit/phpunit": "^10.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true
+    }
+}
