@@ -30,7 +30,7 @@ const SendMoney = () => {
   const [processing, setProcessing] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [done, setDone] = useState(false);
-  const [recipientInfo, setRecipientInfo] = useState<{ name: string; wallet: string } | null>(null);
+  const [recipientInfo, setRecipientInfo] = useState<{ name: string; wallet: string; userId: string; avatar?: string } | null>(null);
   const [txResult, setTxResult] = useState<{ reference: string; fee: number; currency: string } | null>(null);
   const [errors, setErrors] = useState<ValidationError[]>([]);
 
