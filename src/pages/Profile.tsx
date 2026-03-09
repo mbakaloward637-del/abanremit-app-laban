@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, User, Phone, Mail, Shield, Camera, Lock, ChevronRight, Loader2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 
@@ -11,19 +11,15 @@ const Profile = () => {
   const { user, loading, refreshUser } = useAuth();
   const [activeModal, setActiveModal] = useState<string | null>(null);
 
-  // Change Password state
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
 
-  // Change PIN state
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmNewPin, setConfirmNewPin] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
 
-  // Update Info state
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -47,26 +43,32 @@ const Profile = () => {
     if (newPassword !== confirmNewPassword) { toast.error("Passwords don't match"); return; }
     if (newPassword.length < 8) { toast.error("Minimum 8 characters"); return; }
     setPwLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setPwLoading(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Password updated!");
-    setActiveModal(null);
-    setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword("");
+    try {
+      await api.auth.changePassword(newPassword);
+      toast.success("Password updated!");
+      setActiveModal(null);
+      setNewPassword(""); setConfirmNewPassword("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   const handleChangePin = async () => {
     if (newPin !== confirmNewPin) { toast.error("PINs don't match"); return; }
     if (newPin.length < 4) { toast.error("PIN must be 4-6 digits"); return; }
     setPinLoading(true);
-    const { data, error } = await supabase.functions.invoke("set-wallet-pin", {
-      body: { pin: newPin, current_pin: currentPin || undefined },
-    });
-    setPinLoading(false);
-    if (error || data?.error) { toast.error(data?.error || "Failed to update PIN"); return; }
-    toast.success("Wallet PIN updated!");
-    setActiveModal(null);
-    setCurrentPin(""); setNewPin(""); setConfirmNewPin("");
+    try {
+      await api.wallet.setPin(newPin, currentPin || undefined);
+      toast.success("Wallet PIN updated!");
+      setActiveModal(null);
+      setCurrentPin(""); setNewPin(""); setConfirmNewPin("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update PIN");
+    } finally {
+      setPinLoading(false);
+    }
   };
 
   const handleUpdateInfo = async () => {
@@ -80,12 +82,16 @@ const Profile = () => {
 
     if (Object.keys(updates).length === 0) { toast.info("No changes"); setInfoLoading(false); return; }
 
-    const { error } = await supabase.from("profiles").update(updates).eq("user_id", user.id);
-    setInfoLoading(false);
-    if (error) { toast.error("Update failed"); return; }
-    await refreshUser();
-    toast.success("Profile updated!");
-    setActiveModal(null);
+    try {
+      await api.profile.update(updates);
+      await refreshUser();
+      toast.success("Profile updated!");
+      setActiveModal(null);
+    } catch (err: any) {
+      toast.error(err.message || "Update failed");
+    } finally {
+      setInfoLoading(false);
+    }
   };
 
   const menuItems = [
@@ -113,13 +119,11 @@ const Profile = () => {
           <button onClick={() => navigate(-1)} className="back-btn"><ArrowLeft size={18} className="text-foreground" /></button>
           <h1 className="text-lg font-bold text-foreground">Profile</h1>
         </div>
-
         <div className="flex flex-col items-center mb-6">
           <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-2xl font-bold text-primary-foreground mb-3">{user.avatarInitials}</div>
           <h2 className="text-lg font-bold text-foreground">{user.firstName} {user.lastName}</h2>
           <p className="text-sm text-muted-foreground">{user.walletNumber}</p>
         </div>
-
         <div className="section-card space-y-3 mb-6">
           {[
             { icon: Phone, label: "Phone", value: user.phone },
@@ -128,29 +132,21 @@ const Profile = () => {
           ].map((row) => (
             <div key={row.label} className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"><row.icon size={16} className="text-primary" /></div>
-              <div className="flex-1">
-                <p className="text-[10px] text-muted-foreground">{row.label}</p>
-                <p className="text-sm font-medium text-foreground capitalize">{row.value}</p>
-              </div>
+              <div className="flex-1"><p className="text-[10px] text-muted-foreground">{row.label}</p><p className="text-sm font-medium text-foreground capitalize">{row.value}</p></div>
             </div>
           ))}
         </div>
-
         <div className="space-y-2">
           {menuItems.map((item) => (
             <button key={item.label} onClick={item.action} className="section-card w-full flex items-center gap-3 hover:bg-secondary/50 transition-colors">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10"><item.icon size={18} className="text-primary" /></div>
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-foreground">{item.label}</p>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
+              <div className="flex-1 text-left"><p className="text-sm font-medium text-foreground">{item.label}</p><p className="text-xs text-muted-foreground">{item.desc}</p></div>
               <ChevronRight size={16} className="text-muted-foreground" />
             </button>
           ))}
         </div>
       </div>
 
-      {/* Change Password Modal */}
       {activeModal === "password" && (
         <Modal title="Change Password" onClose={() => setActiveModal(null)}>
           <input type="password" placeholder="New Password" className="input-field" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
@@ -160,23 +156,16 @@ const Profile = () => {
           </button>
         </Modal>
       )}
-
-      {/* Change PIN Modal */}
       {activeModal === "pin" && (
         <Modal title="Change Wallet PIN" onClose={() => setActiveModal(null)}>
-          <input type="password" inputMode="numeric" maxLength={6} placeholder="Current PIN" className="input-field text-center tracking-[0.5em]"
-            value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))} />
-          <input type="password" inputMode="numeric" maxLength={6} placeholder="New PIN (4-6 digits)" className="input-field text-center tracking-[0.5em]"
-            value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} />
-          <input type="password" inputMode="numeric" maxLength={6} placeholder="Confirm New PIN" className="input-field text-center tracking-[0.5em]"
-            value={confirmNewPin} onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, ""))} />
+          <input type="password" inputMode="numeric" maxLength={6} placeholder="Current PIN" className="input-field text-center tracking-[0.5em]" value={currentPin} onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, ""))} />
+          <input type="password" inputMode="numeric" maxLength={6} placeholder="New PIN (4-6 digits)" className="input-field text-center tracking-[0.5em]" value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} />
+          <input type="password" inputMode="numeric" maxLength={6} placeholder="Confirm New PIN" className="input-field text-center tracking-[0.5em]" value={confirmNewPin} onChange={(e) => setConfirmNewPin(e.target.value.replace(/\D/g, ""))} />
           <button onClick={handleChangePin} disabled={pinLoading} className="btn-primary flex items-center justify-center gap-2 w-full">
             {pinLoading ? <Loader2 size={16} className="animate-spin" /> : "Update PIN"}
           </button>
         </Modal>
       )}
-
-      {/* Update Info Modal */}
       {activeModal === "info" && (
         <Modal title="Update Personal Info" onClose={() => setActiveModal(null)}>
           <input placeholder="First Name" className="input-field" value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
@@ -189,7 +178,6 @@ const Profile = () => {
           </button>
         </Modal>
       )}
-
       <BottomNav />
     </div>
   );

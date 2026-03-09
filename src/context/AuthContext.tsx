@@ -1,29 +1,13 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { User, Session } from "@supabase/supabase-js";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { api } from "@/services/api";
+import type { AppUser } from "@/services/api";
 
 export type UserRole = "user" | "admin" | "superadmin";
 
-export interface AppUser {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  walletNumber: string;
-  walletBalance: number;
-  currency: string;
-  avatarInitials: string;
-  role: UserRole;
-  status: string;
-  kycStatus: string;
-  country: string;
-  createdAt: string;
-}
+export type { AppUser };
 
 interface AuthContextType {
   user: AppUser | null;
-  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   register: (email: string, password: string, metadata: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
@@ -37,116 +21,55 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState<UserRole[]>([]);
 
-  const fetchUserData = async (authUser: User) => {
-    try {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", authUser.id)
-        .single();
-
-      const { data: wallet } = await supabase
-        .from("wallets")
-        .select("*")
-        .eq("user_id", authUser.id)
-        .single();
-
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authUser.id);
-
-      const roleList = (userRoles || []).map((r) => r.role as UserRole);
-      setRoles(roleList);
-
-      const highestRole: UserRole = roleList.includes("superadmin")
-        ? "superadmin"
-        : roleList.includes("admin")
-        ? "admin"
-        : "user";
-
-      if (profile && wallet) {
-        const initials = `${(profile.first_name || "")[0] || ""}${(profile.last_name || "")[0] || ""}`.toUpperCase();
-        setUser({
-          id: authUser.id,
-          firstName: profile.first_name,
-          lastName: profile.last_name,
-          email: profile.email,
-          phone: profile.phone || "",
-          walletNumber: wallet.wallet_number,
-          walletBalance: Number(wallet.balance),
-          currency: wallet.currency,
-          avatarInitials: initials || "??",
-          role: highestRole,
-          status: profile.status,
-          kycStatus: profile.kyc_status,
-          country: profile.country,
-          createdAt: profile.created_at,
-        });
-      }
-    } catch (err) {
-      console.error("Error fetching user data:", err);
-    }
-  };
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        if (newSession?.user) {
-          setTimeout(() => fetchUserData(newSession.user), 0);
-        } else {
-          setUser(null);
-          setRoles([]);
-        }
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      if (existingSession?.user) {
-        fetchUserData(existingSession.user);
-      }
+  const fetchUser = useCallback(async () => {
+    if (!api.isAuthenticated()) {
+      setUser(null);
       setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+      return;
+    }
+    try {
+      const userData = await api.auth.me();
+      setUser(userData);
+    } catch {
+      setUser(null);
+      api.setToken(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Realtime wallet balance listener
+  useEffect(() => {
+    // Listen for 401 logouts
+    api.onAuthStateChange((u) => {
+      if (!u) {
+        setUser(null);
+      }
+    });
+    fetchUser();
+  }, [fetchUser]);
+
+  // Poll for balance updates every 30s
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel(`wallet-balance-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "wallets",
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newBalance = Number(payload.new.balance);
-          setUser((prev) => prev ? { ...prev, walletBalance: newBalance } : prev);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(async () => {
+      try {
+        const fresh = await api.auth.me();
+        setUser(fresh);
+      } catch {}
+    }, 30000);
+    return () => clearInterval(interval);
   }, [user?.id]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return !error;
+    try {
+      const res = await api.auth.login(email, password);
+      setUser(res.user);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   const register = async (
@@ -154,36 +77,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     password: string,
     metadata: Record<string, string>
   ): Promise<{ success: boolean; error?: string }> => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata,
-        emailRedirectTo: window.location.origin,
-      },
-    });
-    if (error) return { success: false, error: error.message };
-    return { success: true };
+    try {
+      const res = await api.auth.register({
+        email,
+        password,
+        first_name: metadata.first_name || "",
+        last_name: metadata.last_name || "",
+        middle_name: metadata.middle_name,
+        phone: metadata.phone,
+        country: metadata.country,
+        country_code: metadata.country_code,
+        currency: metadata.currency,
+        city: metadata.city,
+        address: metadata.address,
+        gender: metadata.gender,
+        date_of_birth: metadata.date_of_birth,
+        pin: metadata.pin,
+      });
+      setUser(res.user);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.logout();
     setUser(null);
-    setSession(null);
-    setRoles([]);
   };
 
   const refreshUser = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) await fetchUserData(authUser);
+    try {
+      const userData = await api.auth.me();
+      setUser(userData);
+    } catch {}
   };
 
-  const isAdmin = roles.includes("admin") || roles.includes("superadmin");
-  const isSuperAdmin = roles.includes("superadmin");
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperAdmin = user?.role === "superadmin";
 
   return (
     <AuthContext.Provider
-      value={{ user, session, loading, login, register, logout, refreshUser, isAdmin, isSuperAdmin }}
+      value={{ user, loading, login, register, logout, refreshUser, isAdmin, isSuperAdmin }}
     >
       {children}
     </AuthContext.Provider>

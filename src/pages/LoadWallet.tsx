@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, CreditCard, Smartphone, Building2, Loader2, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { toast } from "sonner";
 import BottomNav from "@/components/BottomNav";
 
@@ -20,60 +20,23 @@ const LoadWallet = () => {
   const { user, refreshUser } = useAuth();
   const [method, setMethod] = useState<Method>("card");
   const [amount, setAmount] = useState("");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [processing, setProcessing] = useState(false);
   const [done, setDone] = useState(false);
 
   const handleDeposit = async () => {
     if (!user || !amount) return;
     setProcessing(true);
-
     try {
-      // Get wallet
-      const { data: wallet } = await supabase.from("wallets").select("*").eq("user_id", user.id).single();
-      if (!wallet) throw new Error("Wallet not found");
-
-      // Call appropriate payment provider edge function
-      const providerMap = { card: "Paystack", mpesa: "M-Pesa", bank: "Bank Transfer" };
-
-      if (method === "card") {
-        supabase.functions.invoke("process-paystack", {
-          body: { action: "initialize", amount, currency: wallet.currency, email: user.email },
-        }).catch(() => {});
-      } else if (method === "mpesa") {
-        supabase.functions.invoke("process-mpesa", {
-          body: { action: "stk_push", amount, phone: user.phone, wallet_id: wallet.id },
-        }).catch(() => {});
+      if (method === "mpesa") {
+        await api.mpesa.stkPush({ phone: phone || user.phone, amount: Number(amount) });
+        toast.success("STK Push sent! Check your phone.");
+      } else {
+        await api.transactions.deposit({ amount: Number(amount), method });
       }
-
-      // In production, wallet credit happens via webhook after payment confirmation
-      // For now, simulate immediate credit
-      const ref = `DEP${Date.now()}`;
-
-      // Credit wallet (in production, this happens via webhook after payment confirmation)
-      await supabase.from("wallets").update({ balance: Number(wallet.balance) + Number(amount) }).eq("id", wallet.id);
-
-      // Create transaction record
-      await supabase.from("transactions").insert({
-        reference: ref,
-        type: "deposit",
-        receiver_user_id: user.id,
-        receiver_wallet_id: wallet.id,
-        amount: Number(amount),
-        currency: wallet.currency,
-        description: `${providerMap[method]} Deposit`,
-        status: "completed",
-        method,
-        provider: providerMap[method],
-      });
-
       await refreshUser();
       setDone(true);
-      toast.success(`${wallet.currency} ${amount} deposited successfully!`);
-
-      // Send transaction SMS notification (fire-and-forget)
-      supabase.functions.invoke("send-transaction-sms", {
-        body: { type: "deposit", amount, currency: wallet.currency, reference: ref },
-      }).catch(() => {});
+      toast.success(`${user.currency} ${amount} deposit initiated!`);
     } catch (err: any) {
       toast.error(err.message || "Deposit failed");
     } finally {
@@ -84,17 +47,13 @@ const LoadWallet = () => {
   if (done) {
     return (
       <div className="page-container flex flex-col">
-        <div className="px-5 pt-6">
-          <div className="page-header px-0 pt-0">
-            <button onClick={() => navigate("/dashboard")} className="back-btn"><ArrowLeft size={18} className="text-foreground" /></button>
-            <h1 className="text-lg font-bold text-foreground">Load Wallet</h1>
-          </div>
-        </div>
+        <div className="px-5 pt-6"><div className="page-header px-0 pt-0">
+          <button onClick={() => navigate("/dashboard")} className="back-btn"><ArrowLeft size={18} className="text-foreground" /></button>
+          <h1 className="text-lg font-bold text-foreground">Load Wallet</h1>
+        </div></div>
         <div className="flex-1 flex items-center justify-center px-5">
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success/10">
-              <Check size={40} className="text-success" />
-            </div>
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-success/10"><Check size={40} className="text-success" /></div>
             <h2 className="text-xl font-bold text-foreground">Deposit Successful!</h2>
             <p className="mt-1 text-sm text-muted-foreground">{user?.currency} {amount} added to wallet</p>
             <button onClick={() => navigate("/dashboard")} className="mt-6 bg-primary rounded-xl px-8 py-3 text-sm font-semibold text-primary-foreground">Done</button>
@@ -115,14 +74,11 @@ const LoadWallet = () => {
 
         <div className="mb-6">
           <label className="label-text">Amount ({user?.currency})</label>
-          <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)}
-            className="input-field text-center text-3xl font-bold" />
+          <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-field text-center text-3xl font-bold" />
           <div className="flex gap-2 mt-3">
             {[500, 1000, 5000, 10000].map((v) => (
               <button key={v} onClick={() => setAmount(String(v))}
-                className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${
-                  amount === String(v) ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
-                }`}>{v.toLocaleString()}</button>
+                className={`flex-1 rounded-lg border py-2 text-xs font-medium transition-all ${amount === String(v) ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`}>{v.toLocaleString()}</button>
             ))}
           </div>
         </div>
@@ -130,9 +86,7 @@ const LoadWallet = () => {
         <div className="flex rounded-xl border border-border p-1 mb-6 bg-secondary">
           {methods.map((m) => (
             <button key={m.id} onClick={() => setMethod(m.id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-3 text-xs font-medium transition-all ${
-                method === m.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-              }`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-3 text-xs font-medium transition-all ${method === m.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>
               <m.icon size={14} />{m.label}
             </button>
           ))}
@@ -155,12 +109,11 @@ const LoadWallet = () => {
               </button>
             </motion.div>
           )}
-
           {method === "mpesa" && (
             <motion.div key="mpesa" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
               <div className="section-card">
                 <p className="text-[10px] text-muted-foreground uppercase mb-3 font-medium">M-Pesa Number</p>
-                <input placeholder="+254 7XX XXX XXX" className="input-field" defaultValue={user?.phone} />
+                <input placeholder="+254 7XX XXX XXX" className="input-field" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <button onClick={handleDeposit} disabled={!amount || processing} className="btn-primary flex items-center justify-center gap-2">
                 {processing ? <Loader2 size={16} className="animate-spin" /> : "Send STK Push"}
@@ -168,7 +121,6 @@ const LoadWallet = () => {
               <p className="text-center text-xs text-muted-foreground">You'll receive an M-Pesa prompt on your phone</p>
             </motion.div>
           )}
-
           {method === "bank" && (
             <motion.div key="bank" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
               <div className="section-card space-y-3">
