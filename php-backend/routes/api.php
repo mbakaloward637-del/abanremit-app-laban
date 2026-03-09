@@ -9,6 +9,12 @@ use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ExchangeRateController;
 use App\Http\Controllers\Api\FeeController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\StatementController;
+use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\Api\SupportController;
+use App\Http\Controllers\Api\MpesaController;
+use App\Http\Controllers\Api\AirtimeController;
+use App\Http\Controllers\Api\BulkNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +35,14 @@ Route::prefix('v1')->group(function () {
     // ─── Public Data ───
     Route::get('exchange-rates', [ExchangeRateController::class, 'index']);
     Route::get('fees', [FeeController::class, 'index']);
+    Route::get('airtime/networks', [AirtimeController::class, 'networks']);
+
+    // ─── Webhooks (no auth — verified by signature) ───
+    Route::prefix('webhooks')->group(function () {
+        Route::post('paystack', [WebhookController::class, 'paystack']);
+        Route::post('mpesa/c2b', [WebhookController::class, 'mpesaC2B']);
+        Route::post('mpesa/b2c', [WebhookController::class, 'mpesaB2C']);
+    });
 
     // ─── Authenticated Routes ───
     Route::middleware('auth:api')->group(function () {
@@ -48,8 +62,20 @@ Route::prefix('v1')->group(function () {
         Route::post('transactions/transfer', [TransactionController::class, 'transfer']);
         Route::post('transactions/deposit', [TransactionController::class, 'deposit']);
         Route::post('transactions/withdraw', [TransactionController::class, 'withdraw']);
-        Route::post('transactions/airtime', [TransactionController::class, 'airtime']);
+
+        // Airtime (dedicated controller with Africa's Talking integration)
+        Route::post('airtime/purchase', [AirtimeController::class, 'purchase']);
+
+        // Exchange
         Route::post('transactions/exchange', [TransactionController::class, 'exchange']);
+
+        // M-Pesa direct
+        Route::post('mpesa/stk-push', [MpesaController::class, 'stkPush']);
+        Route::post('mpesa/b2c', [MpesaController::class, 'b2c']);
+
+        // Statements
+        Route::post('statements/download', [StatementController::class, 'download']);
+        Route::get('statements/preview', [StatementController::class, 'preview']);
 
         // Recipients
         Route::post('recipients/lookup', [TransactionController::class, 'lookupRecipient']);
@@ -62,6 +88,11 @@ Route::prefix('v1')->group(function () {
         Route::get('profile', [ProfileController::class, 'show']);
         Route::put('profile', [ProfileController::class, 'update']);
         Route::post('profile/kyc', [ProfileController::class, 'uploadKyc']);
+
+        // Support Tickets (user)
+        Route::get('support-tickets', [SupportController::class, 'index']);
+        Route::post('support-tickets', [SupportController::class, 'store']);
+        Route::get('support-tickets/{id}', [SupportController::class, 'show']);
 
         // ─── Admin Routes ───
         Route::prefix('admin')->middleware(\App\Http\Middleware\AdminMiddleware::class)->group(function () {
@@ -89,6 +120,8 @@ Route::prefix('v1')->group(function () {
 
             // Notifications
             Route::post('notifications', [AdminController::class, 'sendNotification']);
+            Route::post('notifications/bulk', [BulkNotificationController::class, 'sendBulk']);
+            Route::post('sms/bulk', [BulkNotificationController::class, 'sendBulkSms']);
 
             // Logs & Security
             Route::get('logs', [AdminController::class, 'activityLogs']);

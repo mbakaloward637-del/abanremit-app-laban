@@ -30,9 +30,22 @@ class ApiClient {
       body: isFormData ? body : body ? JSON.stringify(body) : undefined,
     });
 
+    // Handle file downloads (CSV)
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/csv')) {
+      const blob = await res.blob();
+      return { blob, filename: this.extractFilename(res) } as any;
+    }
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || data.message || 'Request failed');
     return data;
+  }
+
+  private extractFilename(res: Response): string {
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename=(.+)/);
+    return match ? match[1] : 'statement.csv';
   }
 
   setToken(token: string | null) {
@@ -96,11 +109,42 @@ class ApiClient {
     withdraw: (data: { amount: number; method: string; destination: string; pin: string }) =>
       this.request<any>('POST', '/transactions/withdraw', data),
 
-    airtime: (data: { amount: number; phone: string; network: string }) =>
-      this.request<any>('POST', '/transactions/airtime', data),
-
     exchange: (data: { amount: number; from_currency: string; to_currency: string }) =>
       this.request<any>('POST', '/transactions/exchange', data),
+  };
+
+  // ─── AIRTIME ───
+  airtime = {
+    purchase: (data: { amount: number; phone: string; network: 'Safaricom' | 'Airtel' | 'Telkom' }) =>
+      this.request<any>('POST', '/airtime/purchase', data),
+    networks: () => this.request<any[]>('GET', '/airtime/networks'),
+  };
+
+  // ─── M-PESA ───
+  mpesa = {
+    stkPush: (data: { phone: string; amount: number }) =>
+      this.request<any>('POST', '/mpesa/stk-push', data),
+    b2c: (data: { phone: string; amount: number; pin: string }) =>
+      this.request<any>('POST', '/mpesa/b2c', data),
+  };
+
+  // ─── STATEMENTS ───
+  statements = {
+    preview: (from_date: string, to_date: string) =>
+      this.request<any>('GET', `/statements/preview?from_date=${from_date}&to_date=${to_date}`),
+    download: async (from_date: string, to_date: string, format: 'csv' | 'pdf' = 'csv') => {
+      const result = await this.request<{ blob: Blob; filename: string }>('POST', '/statements/download', { from_date, to_date, format });
+      // Auto-download the file
+      const url = URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      return result;
+    },
   };
 
   // ─── RECIPIENTS ───
@@ -120,6 +164,14 @@ class ApiClient {
     get: () => this.request<any>('GET', '/profile'),
     update: (data: Record<string, string>) => this.request('PUT', '/profile', data),
     uploadKyc: (formData: FormData) => this.request('POST', '/profile/kyc', formData, true),
+  };
+
+  // ─── SUPPORT TICKETS ───
+  support = {
+    list: () => this.request<any[]>('GET', '/support-tickets'),
+    create: (data: { subject: string; description: string; category?: string; priority?: string }) =>
+      this.request<any>('POST', '/support-tickets', data),
+    get: (id: string) => this.request<any>('GET', `/support-tickets/${id}`),
   };
 
   // ─── PUBLIC DATA ───
@@ -149,6 +201,10 @@ class ApiClient {
     updateKyc: (id: string, status: string) => this.request('PUT', `/admin/kyc/${id}`, { status }),
     sendNotification: (data: { user_id: string; title: string; message: string; type?: string }) =>
       this.request('POST', '/admin/notifications', data),
+    sendBulkNotification: (data: { title: string; message: string; type?: string; filter?: string; country?: string }) =>
+      this.request('POST', '/admin/notifications/bulk', data),
+    sendBulkSms: (data: { message: string; filter?: string; country?: string; phone_numbers?: string[] }) =>
+      this.request('POST', '/admin/sms/bulk', data),
     activityLogs: () => this.request<any[]>('GET', '/admin/logs'),
     securityAlerts: () => this.request<any[]>('GET', '/admin/security-alerts'),
     resolveAlert: (id: string) => this.request('PUT', `/admin/security-alerts/${id}`),
