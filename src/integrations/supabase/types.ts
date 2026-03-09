@@ -585,6 +585,14 @@ export type Database = {
         Args: { lookup_type: string; lookup_value: string }
         Returns: Json
       }
+      reverse_transaction: {
+        Args: {
+          p_admin_id: string
+          p_reason?: string
+          p_transaction_id: string
+        }
+        Returns: Json
+      }
       set_pin: {
         Args: { _pin: string; _wallet_id: string }
         Returns: undefined
