@@ -1,0 +1,133 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\WalletController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ExchangeRateController;
+use App\Http\Controllers\Api\FeeController;
+use App\Http\Controllers\Api\AdminController;
+
+/*
+|--------------------------------------------------------------------------
+| API Routes — /api/v1/
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('v1')->group(function () {
+
+    // ─── Public Auth ───
+    Route::prefix('auth')->group(function () {
+        Route::post('register', [AuthController::class, 'register']);
+        Route::post('login', [AuthController::class, 'login']);
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+        Route::post('reset-password', [AuthController::class, 'resetPassword']);
+    });
+
+    // ─── Public Data ───
+    Route::get('exchange-rates', [ExchangeRateController::class, 'index']);
+    Route::get('fees', [FeeController::class, 'index']);
+
+    // ─── Authenticated Routes ───
+    Route::middleware('auth:api')->group(function () {
+
+        // Auth
+        Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::get('auth/me', [AuthController::class, 'me']);
+        Route::put('auth/change-password', [AuthController::class, 'changePassword']);
+
+        // Wallet
+        Route::get('wallet', [WalletController::class, 'show']);
+        Route::post('wallet/set-pin', [WalletController::class, 'setPin']);
+        Route::post('wallet/verify-pin', [WalletController::class, 'verifyPin']);
+
+        // Transactions
+        Route::get('transactions', [TransactionController::class, 'index']);
+        Route::post('transactions/transfer', [TransactionController::class, 'transfer']);
+        Route::post('transactions/deposit', [TransactionController::class, 'deposit']);
+        Route::post('transactions/withdraw', [TransactionController::class, 'withdraw']);
+        Route::post('transactions/airtime', [TransactionController::class, 'airtime']);
+        Route::post('transactions/exchange', [TransactionController::class, 'exchange']);
+
+        // Recipients
+        Route::post('recipients/lookup', [TransactionController::class, 'lookupRecipient']);
+
+        // Notifications
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::put('notifications/{id}/read', [NotificationController::class, 'markRead']);
+
+        // Profile
+        Route::get('profile', [ProfileController::class, 'show']);
+        Route::put('profile', [ProfileController::class, 'update']);
+        Route::post('profile/kyc', [ProfileController::class, 'uploadKyc']);
+
+        // ─── Admin Routes ───
+        Route::prefix('admin')->middleware(\App\Http\Middleware\AdminMiddleware::class)->group(function () {
+            Route::get('dashboard', [AdminController::class, 'dashboard']);
+
+            // Users
+            Route::get('users', [AdminController::class, 'users']);
+            Route::get('users/{id}', [AdminController::class, 'userDetail']);
+            Route::put('users/{id}/status', [AdminController::class, 'updateUserStatus']);
+            Route::post('users/{id}/reset-password', [AdminController::class, 'resetUserPassword']);
+            Route::post('users/{id}/reset-pin', [AdminController::class, 'resetUserPin']);
+
+            // Transactions
+            Route::get('transactions', [AdminController::class, 'transactions']);
+            Route::post('transactions/{id}/flag', [AdminController::class, 'flagTransaction']);
+            Route::post('transactions/{id}/reverse', [AdminController::class, 'reverseTransaction']);
+
+            // Withdrawals
+            Route::get('withdrawals', [AdminController::class, 'withdrawals']);
+            Route::put('withdrawals/{id}', [AdminController::class, 'updateWithdrawal']);
+
+            // KYC
+            Route::get('kyc', [AdminController::class, 'pendingKyc']);
+            Route::put('kyc/{id}', [AdminController::class, 'updateKyc']);
+
+            // Notifications
+            Route::post('notifications', [AdminController::class, 'sendNotification']);
+
+            // Logs & Security
+            Route::get('logs', [AdminController::class, 'activityLogs']);
+            Route::get('security-alerts', [AdminController::class, 'securityAlerts']);
+            Route::put('security-alerts/{id}', [AdminController::class, 'resolveAlert']);
+
+            // Support
+            Route::get('support-tickets', [AdminController::class, 'supportTickets']);
+            Route::put('support-tickets/{id}', [AdminController::class, 'updateTicket']);
+
+            // ─── Super Admin Only ───
+            Route::middleware(\App\Http\Middleware\SuperAdminMiddleware::class)->group(function () {
+                // Exchange Rates
+                Route::get('exchange-rates', [AdminController::class, 'getExchangeRates']);
+                Route::post('exchange-rates', [AdminController::class, 'createExchangeRate']);
+                Route::put('exchange-rates/{id}', [AdminController::class, 'updateExchangeRate']);
+                Route::delete('exchange-rates/{id}', [AdminController::class, 'deleteExchangeRate']);
+
+                // Fees
+                Route::get('fees', [AdminController::class, 'getFees']);
+                Route::post('fees', [AdminController::class, 'createFee']);
+                Route::put('fees/{id}', [AdminController::class, 'updateFee']);
+
+                // Payment Gateways
+                Route::get('payment-gateways', [AdminController::class, 'getPaymentGateways']);
+                Route::put('payment-gateways/{id}', [AdminController::class, 'updatePaymentGateway']);
+
+                // Platform Config
+                Route::get('platform-config', [AdminController::class, 'getConfig']);
+                Route::put('platform-config', [AdminController::class, 'updateConfig']);
+
+                // Roles
+                Route::get('roles/{userId}', [AdminController::class, 'getRoles']);
+                Route::post('roles', [AdminController::class, 'assignRole']);
+                Route::delete('roles/{id}', [AdminController::class, 'removeRole']);
+
+                // Audit Logs (full)
+                Route::get('audit-logs', [AdminController::class, 'activityLogs']);
+            });
+        });
+    });
+});
