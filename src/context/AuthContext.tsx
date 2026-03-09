@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { api } from "@/services/api";
 import type { AppUser } from "@/services/api";
 
@@ -17,35 +17,23 @@ interface AuthContextType {
   isSuperAdmin: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AppUser | null>(() => {
-    // Initialize from cached user data for instant render
-    const cached = localStorage.getItem("cached_user");
-    return cached ? JSON.parse(cached) : null;
-  });
-  const [loading, setLoading] = useState(() => {
-    // If we have cached data, don't show loading
-    return !localStorage.getItem("cached_user") && api.isAuthenticated();
-  });
-  const initialized = useRef(false);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchUser = useCallback(async () => {
     if (!api.isAuthenticated()) {
       setUser(null);
       setLoading(false);
-      localStorage.removeItem("cached_user");
       return;
     }
     try {
       const userData = await api.auth.me();
       setUser(userData);
-      // Cache for instant render on next load
-      localStorage.setItem("cached_user", JSON.stringify(userData));
     } catch {
       setUser(null);
-      localStorage.removeItem("cached_user");
       api.setToken(null);
     } finally {
       setLoading(false);
@@ -53,23 +41,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    
-    // Listen for 401 logouts
     api.onAuthStateChange((u) => {
       if (!u) {
         setUser(null);
-        localStorage.removeItem("cached_user");
       }
     });
-    
-    // Only fetch if we need to verify token
-    if (api.isAuthenticated()) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
+    fetchUser();
   }, [fetchUser]);
 
   // Poll for balance updates every 30s
@@ -79,7 +56,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const fresh = await api.auth.me();
         setUser(fresh);
-        localStorage.setItem("cached_user", JSON.stringify(fresh));
       } catch {}
     }, 30000);
     return () => clearInterval(interval);
@@ -89,7 +65,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const res = await api.auth.login(email, password);
       setUser(res.user);
-      localStorage.setItem("cached_user", JSON.stringify(res.user));
       return true;
     } catch {
       return false;
@@ -119,7 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         pin: metadata.pin,
       });
       setUser(res.user);
-      localStorage.setItem("cached_user", JSON.stringify(res.user));
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -129,14 +103,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await api.auth.logout();
     setUser(null);
-    localStorage.removeItem("cached_user");
   };
 
   const refreshUser = async () => {
     try {
       const userData = await api.auth.me();
       setUser(userData);
-      localStorage.setItem("cached_user", JSON.stringify(userData));
     } catch {}
   };
 
@@ -154,6 +126,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (ctx === undefined) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
   return ctx;
 };
