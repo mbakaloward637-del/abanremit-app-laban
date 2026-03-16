@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\SupportController;
 use App\Http\Controllers\Api\MpesaController;
 use App\Http\Controllers\Api\AirtimeController;
 use App\Http\Controllers\Api\BulkNotificationController;
+use App\Http\Controllers\Api\VirtualCardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,7 +25,7 @@ use App\Http\Controllers\Api\BulkNotificationController;
 
 Route::prefix('v1')->group(function () {
 
-    // ─── Public Auth ───
+    // ─── Public Auth (rate limited) ───
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login', [AuthController::class, 'login']);
@@ -46,8 +47,8 @@ Route::prefix('v1')->group(function () {
         Route::post('airtime', [WebhookController::class, 'airtimeCallback']);
     });
 
-    // ─── Authenticated Routes ───
-    Route::middleware('auth:api')->group(function () {
+    // ─── Authenticated Routes (with account status check) ───
+    Route::middleware(['auth:api', 'account.active'])->group(function () {
 
         // Auth
         Route::post('auth/logout', [AuthController::class, 'logout']);
@@ -75,6 +76,11 @@ Route::prefix('v1')->group(function () {
         Route::post('mpesa/stk-push', [MpesaController::class, 'stkPush']);
         Route::post('mpesa/b2c', [MpesaController::class, 'b2c']);
 
+        // Virtual Card
+        Route::get('card', [VirtualCardController::class, 'show']);
+        Route::post('card/create', [VirtualCardController::class, 'create']);
+        Route::put('card/freeze', [VirtualCardController::class, 'toggleFreeze']);
+
         // Statements
         Route::post('statements/download', [StatementController::class, 'download']);
         Route::get('statements/preview', [StatementController::class, 'preview']);
@@ -85,6 +91,7 @@ Route::prefix('v1')->group(function () {
         // Notifications
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::put('notifications/{id}/read', [NotificationController::class, 'markRead']);
+        Route::put('notifications/read-all', [NotificationController::class, 'markAllRead']);
 
         // Profile
         Route::get('profile', [ProfileController::class, 'show']);
