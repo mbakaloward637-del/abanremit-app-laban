@@ -2,8 +2,13 @@
     RewriteEngine On
     RewriteBase /
 
-    # If requesting /api, let it pass through to the api/ folder
-    RewriteRule ^api(/.*)?$ api/index.php [QSA,L]
+    # Pass Authorization header to PHP
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Route /api/* requests to Laravel's public/index.php
+    RewriteCond %{REQUEST_URI} ^/api(/.*)?$
+    RewriteRule ^api(/.*)?$ api/public/index.php [QSA,L]
 
     # If the requested file or directory exists, serve it
     RewriteCond %{REQUEST_FILENAME} -f [OR]
