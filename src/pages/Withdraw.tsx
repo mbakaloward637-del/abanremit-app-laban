@@ -65,7 +65,7 @@ const Withdraw = () => {
           <div>
             <label className="label-text">Amount ({user?.currency})</label>
             <input type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="input-field text-center text-2xl font-bold" />
-            <p className="text-[10px] text-muted-foreground mt-1 text-center">Available: {user?.currency} {user?.walletBalance.toFixed(2)}</p>
+            <p className="text-[10px] text-muted-foreground mt-1 text-center">Available: {user?.currency} {(user?.walletBalance ?? 0).toFixed(2)}</p>
           </div>
           <div className="flex rounded-xl border border-border p-1 bg-secondary">
             {([{ id: "bank" as const, icon: Building2, label: "Bank" }, { id: "mobile" as const, icon: Smartphone, label: "Mobile Money" }]).map((m) => (
