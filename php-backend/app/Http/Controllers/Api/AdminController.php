@@ -455,7 +455,7 @@ class AdminController extends Controller
             ]);
 
             if ($profile->phone) {
-                SmsService::send($profile->phone, 'AbanRemit: Your KYC verification is approved! You now have full access to all features.');
+                SmsService::send($profile->phone, "AbanRemit: Your KYC is approved! Your wallet number is {$walletNumber}. You can now send, receive and withdraw money.");
             }
         }
 
